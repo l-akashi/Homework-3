@@ -9,7 +9,7 @@ import quantstats as qs
 import gurobipy as gp
 import warnings
 import argparse
-
+from scipy.optimize import minimize
 """
 Project Setup
 """
@@ -74,6 +74,27 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
+        def sharpe_ratio(weights, mean_returns, cov_matrix):
+            portfolio_return = np.dot(weights, mean_returns)
+            portfolio_std_dev = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+            return -portfolio_return / portfolio_std_dev  # We negate to maximize
+
+        for current_date in self.price.index[self.lookback:]:
+            lookback_returns = self.returns.loc[:current_date].iloc[-self.lookback:, :][assets]
+            mean_returns = lookback_returns.mean()
+            cov_matrix = lookback_returns.cov()
+
+            num_assets = len(assets)
+            args = (mean_returns, cov_matrix)
+            constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+            bounds = tuple((0, 1) for asset in range(num_assets))
+            result = minimize(sharpe_ratio, num_assets*[1./num_assets], args=args,
+                              method='SLSQP', bounds=bounds, constraints=constraints)
+
+            if result.success:
+                self.portfolio_weights.loc[current_date, assets] = result.x
+            else:
+                self.portfolio_weights.loc[current_date, assets] = np.nan
 
         """
         TODO: Complete Task 4 Above
